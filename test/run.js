@@ -64,29 +64,31 @@ function prefix (content, pref) {
 }
 
 var execCount = 0
-function exec (cmd, cwd, shouldFail, cb) {
+
+function exec (cmd, args, cwd, shouldFail, cb) {
   if (typeof shouldFail === 'function') {
     cb = shouldFail
     shouldFail = false
   }
-  console.error('\n+' + cmd + (shouldFail ? ' (expect failure)' : ''))
+
+  var cmdShow = cmd + ' ' + args.join(' ')
+
+  console.error('\n+' + cmdShow + (shouldFail ? ' (expect failure)' : ''))
 
   // special: replace 'node' with the current execPath,
   // and 'npm' with the thing we installed.
-  var cmdShow = cmd
-  var npmReplace = path.resolve(npmPath, 'npm')
-  var nodeReplace = process.execPath
-  if (process.platform === 'win32') {
-    npmReplace = '"' + npmReplace + '"'
-    nodeReplace = '"' + nodeReplace + '"'
+  function swapInDirectPaths (cmd) {
+    if (cmd === 'node') return process.execPath
+    if (cmd === 'npm') return path.resolve(npmPath, 'npm')
+    return cmd
   }
-  cmd = cmd.replace(/^npm /, npmReplace + ' ')
-  cmd = cmd.replace(/^node /, nodeReplace + ' ')
+  cmd = swapInDirectPaths(cmd)
+  args = args.map(swapInDirectPaths)
 
-  console.error('$$$$$$ cd %s; PATH=%s %s', cwd, env.PATH, cmd)
+  console.error('$$$$$$ cd %s; PATH=%s %s', cwd, env.PATH, cmd, args.join(' '))
 
-  child_process.exec(cmd, {cwd: cwd, env: env}, function (er, stdout, stderr) {
-    console.error('$$$$$$ after command', cmd, cwd)
+  child_process.execFile(cmd, args, {cwd: cwd, env: env}, function (er, stdout, stderr) {
+    console.error('$$$$$$ after command', cmd, args, cwd)
     if (stdout) {
       console.error(prefix(stdout, ' 1> '))
     }
@@ -106,12 +108,6 @@ function exec (cmd, cwd, shouldFail, cb) {
   })
 }
 
-function execChain (cmds, cb) {
-  chain(cmds.map(function (args) {
-    return [exec].concat(args)
-  }), cb)
-}
-
 function flatten (arr) {
   return arr.reduce(function (l, r) {
     return l.concat(r)
@@ -121,7 +117,7 @@ function flatten (arr) {
 function setup (cb) {
   cleanup(function (er) {
     if (er) return cb(er)
-    exec('node \'' + npmcli + '\' install \'' + npmpkg + '\'', root, false, cb)
+    exec('node', [npmcli, 'install', '--ignore-scripts', npmpkg], root, false, cb)
   })
 }
 
@@ -152,15 +148,15 @@ function main (cb) {
     chain(
       [
         setup,
-        [exec, 'npm install ' + npmpkg, testdir],
-        [execChain, packages.map(function (p) {
-          return [ 'npm install packages/' + p, testdir ]
+        [exec, 'npm', ['install', '--ignore-scripts', npmpkg], testdir],
+        [chain, packages.map(function (p) {
+          return [exec, 'npm', ['install', 'packages/' + p], testdir]
         })],
-        [execChain, packages.map(function (p) {
-          return [ 'npm test -ddd', path.resolve(base, p) ]
+        [chain, packages.map(function (p) {
+          return [exec, 'npm', ['test', '-ddd'], path.resolve(base, p)]
         })],
-        [execChain, packagesToRm.map(function (p) {
-          return [ 'npm rm ' + p, root ]
+        [chain, packagesToRm.map(function (p) {
+          return [exec, 'npm', ['rm', p], root]
         })],
         installAndTestEach
       ],
@@ -171,17 +167,17 @@ function main (cb) {
   function installAndTestEach (cb) {
     var thingsToChain = [
       setup,
-      [execChain, flatten(packages.map(function (p) {
+      [chain, flatten(packages.map(function (p) {
         return [
-          ['npm install packages/' + p, testdir],
-          ['npm test', path.resolve(base, p)],
-          ['npm rm ' + p, root]
+          [exec, 'npm', ['install', 'packages/' + p], testdir],
+          [exec, 'npm', ['test'], path.resolve(base, p)],
+          [exec, 'npm', ['rm', p], root]
         ]
       }))]
     ]
     if (process.platform !== 'win32') {
       // Windows can't handle npm rm npm due to file-in-use issues.
-      thingsToChain.push([exec, 'npm rm npm', testdir])
+      thingsToChain.push([exec, 'npm', ['rm', 'npm'], testdir])
     }
 
     chain(thingsToChain, cb)
