@@ -87,6 +87,13 @@ function exec (cmd, args, cwd, shouldFail, cb) {
 
   console.error('$$$$$$ cd %s; PATH=%s %s', cwd, env.PATH, cmd, args.join(' '))
 
+  console.error('!!!!!! Full diagnostics:')
+  console.error('!!!!!! cwd: %s', cwd)
+  console.error('!!!!!! cmd: %s', cmd)
+  console.error('!!!!!! args: %s', args.join(' '))
+  Object.keys(env).forEach(function (k) {
+    console.error('!!!!!! env[%s]: %s', k, env[k])
+  })
   child_process.execFile(cmd, args, {cwd: cwd, env: env}, function (er, stdout, stderr) {
     console.error('$$$$$$ after command', cmd, args, cwd)
     if (stdout) {
