@@ -24,10 +24,11 @@ var cache = path.resolve(temp, 'npm_cache')
 var failures = 0
 var mkdir = require('mkdirp')
 var rimraf = require('rimraf')
+var isWindows = require('../lib/utils/is-windows.js')
 
-var pathEnvSplit = process.platform === 'win32' ? ';' : ':'
+var pathEnvSplit = isWindows ? ';' : ':'
 var pathEnv = process.env.PATH.split(pathEnvSplit)
-var npmPath = process.platform === 'win32' ? root : path.join(root, 'bin')
+var npmPath = isWindows ? root : path.join(root, 'bin')
 
 pathEnv.unshift(npmPath, path.join(root, 'node_modules', '.bin'))
 
@@ -147,7 +148,7 @@ function main (cb) {
 
   function installAllThenTestAll () {
     var packagesToRm = packages.slice(0)
-    if (process.platform !== 'win32') {
+    if (!isWindows) {
       // Windows can't handle npm rm npm due to file-in-use issues.
       packagesToRm.push('npm')
     }
@@ -182,7 +183,7 @@ function main (cb) {
         ]
       }))]
     ]
-    if (process.platform !== 'win32') {
+    if (!isWindows) {
       // Windows can't handle npm rm npm due to file-in-use issues.
       thingsToChain.push([exec, 'npm', ['rm', 'npm'], testdir])
     }
