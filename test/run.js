@@ -95,7 +95,19 @@ function exec (cmd, args, cwd, shouldFail, cb) {
   Object.keys(env).forEach(function (k) {
     console.error('!!!!!! env[%s]: %s', k, env[k])
   })
-  child_process.execFile(cmd, args, {cwd: cwd, env: env}, function (er, stdout, stderr) {
+  if (isWindows) {
+    var quote = function (value) { return '"' + value + '"' }
+    var cmdBits = cmd.split(path.delimiter)
+    var drive = /^[A-Za-z]:$/.test(cmdBits[0]) ? cmdBits.shift() + '\\' : ''
+    var execStr = drive + cmdBits.map(quote).join(path.delimiter) +
+                  ' ' + args.map(quote).join(' ')
+    console.error('!!!!!! execing: %s', execStr)
+    child_process.exec(execStr, {cwd: cwd, env: env}, finishExec)
+  } else {
+    child_process.execFile(cmd, args, {cwd: cwd, env: env}, finishExec)
+  }
+
+  function finishExec (er, stdout, stderr) {
     console.error('$$$$$$ after command', cmd, args, cwd)
     if (stdout) {
       console.error(prefix(stdout, ' 1> '))
@@ -113,7 +125,7 @@ function exec (cmd, args, cwd, shouldFail, cb) {
       console.log('not ok ' + execCount + ' ' + cmdShow)
       cb(new Error('failed ' + cmdShow))
     }
-  })
+  }
 }
 
 function flatten (arr) {
