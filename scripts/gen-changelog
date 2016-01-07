@@ -1,0 +1,2 @@
+#!/bin/sh
+(node $(npm prefix)/scripts/changelog.js "$@"; cat CHANGELOG.md) > new.md && mv new.md CHANGELOG.md
